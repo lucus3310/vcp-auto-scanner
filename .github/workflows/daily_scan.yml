@@ -1,0 +1,77 @@
+name: Daily VCP Scan
+
+on:
+  schedule:
+    - cron: '0 20 * * *' # Runs at 20:00 UTC, which is 04:00 AM UTC+8 (Taiwan)
+  workflow_dispatch: # Allows manual trigger
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  scan_and_deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Restore SQLite Database Cache
+      uses: actions/cache@v4
+      with:
+        path: vcp_scanner.db
+        key: sqlite-db-${{ github.run_id }}
+        restore-keys: |
+          sqlite-db-
+          
+    - name: Run Daily Scan and Export to Google Sheets
+      env:
+        SHEET_ID: ${{ secrets.SHEET_ID }}
+      run: |
+        # Reconstruct credentials.json from secrets
+        echo '${{ secrets.GCP_CREDENTIALS }}' > credentials.json
+        python app.py --run-scan --sheet-id $SHEET_ID
+        
+    - name: Save SQLite Database Cache (Update)
+      uses: actions/cache/save@v4
+      if: always()
+      with:
+        path: vcp_scanner.db
+        key: sqlite-db-${{ github.run_id }}
+        
+    - name: Commit JSON Results to Repository
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add static/latest_scan.json static/history_summary.json
+        git commit -m "Auto-update scan results [skip ci]" || echo "No changes to commit"
+        git push || echo "No changes to push"
+        
+    - name: Upload Static Files as Artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: 'static/'
+        
+  deploy_pages:
+    needs: scan_and_deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

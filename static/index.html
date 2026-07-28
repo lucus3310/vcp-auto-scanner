@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VCP 波動率收縮形態掃描器 - 專業級交易儀表板</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TradingView Lightweight Charts Local Library -->
+    <script src="/static/lightweight-charts.js"></script>
+    <link rel="stylesheet" href="/static/style.css?v=3">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 側邊欄：控制面板 -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">V</div>
+                <div class="brand-text">
+                    <h1>VCP SCANNER</h1>
+                    <span>Volatility Contraction Pattern</span>
+                </div>
+            </div>
+
+            <nav class="control-panel">
+                <section class="control-group">
+                    <label for="preset-select">1. 選擇股票清單</label>
+                    <select id="preset-select">
+                        <option value="ALL" selected>全美股與台股 (All US & TW Stocks)</option>
+                        <option value="US_TECH">美股科技龍頭 (US Tech Leaders)</option>
+                        <option value="SP500_TOP">標普 500 前二十大權值股 (S&P 500 Top)</option>
+                        <option value="NASDAQ_100">那斯達克 100 成分股 (NASDAQ 100)</option>
+                        <option value="TAIWAN_50">台灣 50 指數成分股 (Taiwan 50)</option>
+                        <option value="TAIWAN_ALL">台灣熱門大型股 60+ (Taiwan Large-Cap)</option>
+                        <option value="WATCHLIST">我的自選股清單 (My Watchlist)</option>
+                        <option value="CUSTOM">自訂股票代號 (Custom Input)</option>
+                    </select>
+                </section>
+
+                <section class="control-group">
+                    <label for="symbols-input">2. 股票代號 (以逗號或換行分隔)</label>
+                    <textarea id="symbols-input" placeholder="例如: AAPL, MSFT, NVDA, 2330.TW..."></textarea>
+                    <div class="watchlist-actions" style="margin-top: 6px; display: flex; gap: 8px;">
+                        <button id="btn-save-watchlist" class="btn btn-secondary" style="padding: 6px 10px; font-size: 11px; flex: 1;" title="將輸入框中的股票儲存至我的自選股">儲存至自選股</button>
+                        <button id="btn-clear-watchlist" class="btn btn-secondary" style="padding: 6px 10px; font-size: 11px; flex: 1;" title="清空我的自選股">清空自選股</button>
+                    </div>
+                </section>
+
+                <section class="control-group">
+                    <label>3. 掃描參數設定</label>
+                    
+                    <div class="param-row">
+                        <div class="param-item">
+                            <label for="lookback-select">歷史區間</label>
+                            <select id="lookback-select">
+                                <option value="3mo">3 個月</option>
+                                <option value="6mo" selected>6 個月</option>
+                                <option value="1y">1 年</option>
+                            </select>
+                        </div>
+                        <div class="param-item">
+                            <label for="min-base-input" title="VCP 形態的最少打底天數">打底天數 (最小)</label>
+                            <input type="number" id="min-base-input" value="30" min="15" max="100">
+                        </div>
+                    </div>
+
+                    <div class="param-row">
+                        <div class="param-item">
+                            <label for="vol-spike-input" title="今日突破量需大於20日均量的倍數">突破量能倍數</label>
+                            <input type="number" id="vol-spike-input" value="1.5" step="0.1" min="1.0" max="3.0">
+                        </div>
+                        <div class="param-item">
+                            <label for="contraction-ratio-input" title="後續收縮幅度占前一次收縮幅度的最大比例">收縮比例上限</label>
+                            <input type="number" id="contraction-ratio-input" value="0.95" step="0.01" min="0.5" max="1.0">
+                        </div>
+                    </div>
+
+                    <div class="param-row">
+                        <div class="param-item">
+                            <label for="min-volume-input" title="20日平均交易量最小值 (過濾流動性差的股票)">最小日均量 (股)</label>
+                            <input type="number" id="min-volume-input" value="100000" step="10000" min="0">
+                        </div>
+                    </div>
+                </section>
+
+                <div class="action-buttons">
+                    <button id="btn-start-scan" class="btn btn-primary">開始掃描</button>
+                    <button id="btn-cancel-scan" class="btn btn-secondary" disabled>取消掃描</button>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- 主顯示區 -->
+        <main class="main-content">
+            <!-- 頂部數據統計 -->
+            <header class="stats-row">
+                <div class="stat-card" id="card-total">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <span class="stat-title">已掃描股票</span>
+                        <h2 class="stat-value" id="val-total">0</h2>
+                    </div>
+                </div>
+                <div class="stat-card highlight" id="card-vcp">
+                    <div class="stat-icon">🎯</div>
+                    <div class="stat-info">
+                        <span class="stat-title">符合 VCP 形態</span>
+                        <h2 class="stat-value" id="val-vcp">0</h2>
+                    </div>
+                </div>
+                <div class="stat-card highlight-green" id="card-breakout">
+                    <div class="stat-icon">🚀</div>
+                    <div class="stat-info">
+                        <span class="stat-title">當日爆量突破</span>
+                        <h2 class="stat-value" id="val-breakout">0</h2>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-anomaly">
+                    <div class="stat-icon">🛡️</div>
+                    <div class="stat-info">
+                        <span class="stat-title">異常過濾通過</span>
+                        <h2 class="stat-value" id="val-anomaly">0</h2>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 掃描進度顯示區 -->
+            <section class="progress-container" id="progress-section" style="display: none;">
+                <div class="progress-header">
+                    <span id="progress-status">準備中...</span>
+                    <span id="progress-percentage">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill" style="width: 0%;"></div>
+                </div>
+            </section>
+
+            <!-- 主要結果與圖表區 -->
+            <div class="content-grid">
+                <!-- 結果列表 -->
+                <section class="panel list-panel">
+                    <!-- 分頁標籤切換器 -->
+                    <div class="dashboard-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); padding: 0 16px 12px 16px; margin-bottom: 12px; gap: 8px;">
+                        <button class="dash-tab active" id="tab-live-scan">🔍 即時掃描結果</button>
+                        <button class="dash-tab" id="tab-history-data">📊 歷史數據庫</button>
+                    </div>
+
+                    <!-- 即時掃描結果容器 -->
+                    <div id="live-scan-container">
+                        <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <h2>掃描結果列表</h2>
+                                <select id="history-select" style="padding: 6px 10px; font-size: 12px; border-radius: 6px;">
+                                    <option value="LATEST">當前掃描結果 (Live Scan)</option>
+                                </select>
+                            </div>
+                            <div class="panel-actions">
+                                <input type="text" id="search-input" placeholder="搜尋代號...">
+                                <div class="filter-tabs">
+                                    <button class="tab-btn active" data-filter="all" id="filter-all">全部</button>
+                                    <button class="tab-btn" data-filter="vcp" id="filter-vcp">VCP 成立</button>
+                                    <button class="tab-btn" data-filter="minervini" id="filter-minervini">趨勢符合</button>
+                                    <button class="tab-btn" data-filter="breakout" id="filter-breakout">爆量突破</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table id="results-table">
+                                <thead>
+                                    <tr>
+                                        <th>股票代號</th>
+                                        <th>VCP 狀態</th>
+                                        <th>Minervini</th>
+                                        <th>6M 漲幅</th>
+                                        <th>收縮次數</th>
+                                        <th>波動衰減</th>
+                                        <th>量能收縮</th>
+                                        <th>爆量突破</th>
+                                        <th>RSI</th>
+                                        <th>判定原因</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="results-tbody">
+                                    <tr>
+                                        <td colspan="10" class="empty-state">請在左側輸入股票代號並點擊「開始掃描」</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 歷史數據庫容器 -->
+                    <div id="history-data-container" style="display: none;">
+                        <div class="panel-header" style="padding-bottom: 12px;">
+                            <h2>過往篩選歷史紀錄</h2>
+                            <button id="btn-clear-all-history" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; background-color: rgba(255, 23, 68, 0.1); color: var(--accent-red); border: 1px solid rgba(255, 23, 68, 0.2);">🗑️ 清空所有歷史數據</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table id="history-runs-table">
+                                <thead>
+                                    <tr>
+                                        <th>掃描時間</th>
+                                        <th>標的總數</th>
+                                        <th>VCP 成立數</th>
+                                        <th>趨勢符合數</th>
+                                        <th>爆量突破數</th>
+                                        <th>動作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-runs-tbody">
+                                    <tr>
+                                        <td colspan="6" class="empty-state">無過往篩選歷史紀錄</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 圖表與詳細資訊 -->
+                <section class="panel chart-panel">
+                    <div class="panel-header" style="flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <h2 id="chart-title">圖表分析 (點擊列表股票載入)</h2>
+                            <button id="btn-chart-star" class="btn-star" style="display: none; background: none; border: none; font-size: 20px; cursor: pointer; color: #ffca28; padding: 0 4px; line-height: 1; transition: transform 0.2s;" title="加入/移除自選股">☆</button>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="badge" id="chart-source-badge" style="display: none; background-color: rgba(0, 114, 255, 0.1); color: var(--accent-cyan); border: 1px solid rgba(0, 114, 255, 0.2); font-size: 10px;">Cache</span>
+                            <span class="badge" id="chart-vcp-badge" style="display: none;">VCP</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-wrapper">
+                        <div id="price-chart"></div>
+                        <div class="chart-empty-state" id="chart-empty">
+                            <div class="chart-empty-icon">📈</div>
+                            <p>點擊掃描結果列表中的股票以載入互動式 K 線圖與波動率收縮指標</p>
+                        </div>
+                    </div>
+
+                    <!-- VCP 收縮細節說明 -->
+                    <div class="contraction-details" id="details-section" style="display: none;">
+                        <h3>VCP 波動收縮波動軌跡</h3>
+                        <div class="contraction-cards" id="contraction-cards-container">
+                            <!-- JS 動態生成收縮卡片 -->
+                        </div>
+                    </div>
+
+                    <!-- Minervini 趨勢模板檢核表 -->
+                    <div class="minervini-checklist" id="minervini-section" style="display: none; padding: 20px; border-top: 1px solid var(--border-color); background-color: rgba(255, 255, 255, 0.01);">
+                        <h3 style="font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase;">Mark Minervini 趨勢模板檢核</h3>
+                        <div id="minervini-checklist-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px;">
+                            <!-- JS 動態生成檢核項 -->
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+        
+        <!-- 右側自選股側邊欄 -->
+        <aside class="watchlist-sidebar">
+            <div class="watchlist-header">
+                <h2>⭐ 我的自選股</h2>
+                <span class="watchlist-count" id="watchlist-count">0</span>
+            </div>
+            
+            <div class="watchlist-add-box">
+                <input type="text" id="watchlist-add-input" placeholder="輸入代號 (如 2330, AAPL)...">
+                <button id="btn-watchlist-add" class="btn-icon" title="加入自選股">＋</button>
+            </div>
+            
+            <div class="watchlist-items" id="watchlist-items-container">
+                <!-- JS 動態生成自選股項 -->
+            </div>
+            
+            <div class="watchlist-footer-actions">
+                <button id="btn-watchlist-scan" class="btn btn-primary" style="flex: 1; padding: 10px; font-size: 13px;">🔍 掃描自選股</button>
+                <button id="btn-watchlist-clear" class="btn btn-secondary" style="padding: 10px; font-size: 13px;" title="清空全部自選股">🗑️</button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 自訂右鍵選單 (Context Menu) -->
+    <div id="custom-context-menu" class="context-menu" style="display: none;">
+        <ul>
+            <li id="ctx-load-chart">📈 載入 K 線圖表</li>
+            <li id="ctx-toggle-watchlist">⭐ 加入自選股</li>
+        </ul>
+    </div>
+
+    <!-- 載入腳本 -->
+    <script src="/static/main.js?v=7"></script>
+</body>
+</html>

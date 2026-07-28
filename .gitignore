@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environment
+venv/
+env/
+.env
+
+# Database
+vcp_scanner.db
+
+# Secrets
+credentials.json
+.secrets
+
+# IDE
+.vscode/
+.idea/
+
+# Mac
+.DS_Store
