@@ -1,15 +1,20 @@
+from datetime import datetime
+import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import os
 
-def export_to_google_sheets(results, spreadsheet_id):
+def export_to_google_sheets(results, spreadsheet_id, scan_date=None):
     """
     Exports the scan results to a Google Sheet using a single batch update to minimize API calls.
     Filters the results to only include stocks that match VCP or Minervini criteria.
+    Includes the scan timestamp in each row.
     """
     if not results:
         print("[Google Sheets] No results provided to export.")
         return
+        
+    if not scan_date:
+        scan_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
     creds_file = 'credentials.json'
     if not os.path.exists(creds_file):
@@ -27,7 +32,7 @@ def export_to_google_sheets(results, spreadsheet_id):
         sheet = client.open_by_key(spreadsheet_id).sheet1
         
         # Prepare data for batch update
-        headers = ['Symbol', 'Name', 'VCP', 'Minervini', 'Contractions', 'Volatility Decrease', 'RSI', 'Price Increase 6M', 'Breakout', 'Reason']
+        headers = ['Scan Time', 'Symbol', 'Name', 'VCP', 'Minervini', 'Contractions', 'Volatility Decrease', 'RSI', 'Price Increase 6M', 'Breakout', 'Reason']
         
         data_rows = [headers]
         for r in results:
@@ -35,6 +40,7 @@ def export_to_google_sheets(results, spreadsheet_id):
                 continue
                 
             row = [
+                scan_date,
                 r.get('Symbol', ''),
                 r.get('Name', ''),
                 'Yes' if r.get('VCP') else 'No',

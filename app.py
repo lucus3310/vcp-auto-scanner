@@ -605,7 +605,7 @@ if __name__ == "__main__":
             if args.sheet_id:
                 try:
                     import google_sheets_exporter
-                    google_sheets_exporter.export_to_google_sheets(results, args.sheet_id)
+                    google_sheets_exporter.export_to_google_sheets(results, args.sheet_id, scan_date=latest_date)
                 except ImportError:
                     print("[CLI] google_sheets_exporter module not found. Skipping Google Sheets export.")
         else:
