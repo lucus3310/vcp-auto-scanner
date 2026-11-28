@@ -1,5 +1,12 @@
 [
   {
+    "scan_date": "2026-11-28 03:07:02 (Pre-fetched)",
+    "total_stocks": 6994,
+    "vcp_count": 6,
+    "minervini_count": 17,
+    "breakout_count": 1
+  },
+  {
     "scan_date": "2026-11-27 03:06:50 (Pre-fetched)",
     "total_stocks": 6994,
     "vcp_count": 5,
